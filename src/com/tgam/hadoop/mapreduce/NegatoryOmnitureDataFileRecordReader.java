@@ -1,7 +1,6 @@
 package com.tgam.hadoop.mapreduce;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -18,8 +17,6 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
-import com.ice.tar.TarEntry;
-import com.ice.tar.TarInputStream;
 import com.tgam.hadoop.util.EscapedLineReader;
 
 /**
@@ -27,9 +24,9 @@ import com.tgam.hadoop.util.EscapedLineReader;
  * @author Mike Sukmanowsky (<a href="mailto:mike.sukmanowsky@gmail.com">mike.sukmanowsky@gmail.com</a>)
  *
  */
-public class OmnitureDataFileRecordReader227 extends RecordReader<LongWritable, Text> {
+public class NegatoryOmnitureDataFileRecordReader extends RecordReader<LongWritable, Text> {
 	
-	private static final Log LOG = LogFactory.getLog(OmnitureDataFileRecordReader227.class);
+	private static final Log LOG = LogFactory.getLog(NegatoryOmnitureDataFileRecordReader.class);
 	private static final int NUMBER_OF_FIELDS = 227;
 	
 	private int maxLineLength;
@@ -40,8 +37,6 @@ public class OmnitureDataFileRecordReader227 extends RecordReader<LongWritable, 
 	private EscapedLineReader lineReader;
 	private LongWritable key = null;
 	private Text value = null; 
-	
-	Path path;
 
 	@Override
 	public void initialize(InputSplit genericSplit, TaskAttemptContext context)
@@ -58,11 +53,22 @@ public class OmnitureDataFileRecordReader227 extends RecordReader<LongWritable, 
 		// Open the file and seek to the start of the split
 		FileSystem fs = file.getFileSystem(job);
 		FSDataInputStream fileIn = fs.open(split.getPath());
-		fileIn.seek(start);
-		
-		lineReader = buildEscapedLineReader(split.getPath(), fileIn, codec, job);
-		
-		pos = start;
+		boolean skipFirstLine = false;
+		if (codec != null) {
+			lineReader = new EscapedLineReader(codec.createInputStream(fileIn), job);
+			end = Long.MAX_VALUE;
+		} else {
+			if (start != 0) {
+				skipFirstLine = true;
+				--start;
+				fileIn.seek(start);
+			}
+			lineReader = new EscapedLineReader(fileIn, job);
+		}
+		if (skipFirstLine) {
+			start += lineReader.readLine(new Text(), 0, (int) Math.min((long) Integer.MAX_VALUE, end - start));
+		}
+		this.pos = start;
 	}
 	
 	@Override
@@ -148,56 +154,16 @@ public class OmnitureDataFileRecordReader227 extends RecordReader<LongWritable, 
 				// Otherwise the line is too long and we need to skip this line
 				LOG.warn("Skipped line of size " + bytesRead + " at position " + (pos - bytesRead));
 			}
-			
 		}
 		
 		// Check to see if we actually read a line and return appropriate boolean
-		if (bytesRead == 0 || fields.length != NUMBER_OF_FIELDS || fields[1].equals("browser")) {
+		if (bytesRead == 0 || fields.length != NUMBER_OF_FIELDS) {
+			return true;
+		} else {
 			key = null;
 			value = null;
 			return false;
-		} else {
-			return true;
 		}
 	}
-	
-	
-	public EscapedLineReader buildEscapedLineReader(Path path, FSDataInputStream fileIn, CompressionCodec codec, Configuration job) throws IOException {
-		EscapedLineReader lineReader = null;
-		String lcase =path.getName().toLowerCase();
-		InputStream inputStream = fileIn;
-		if ( codec !=null ) {
-			 inputStream = codec.createInputStream(fileIn);
-		}
-		
-		boolean isTar = lcase.endsWith(".tar") || lcase.endsWith(".tar.gz") || lcase.endsWith(".tgz");
-		
-		if (isTar) {
-			TarInputStream tarInputStream = null;
-			tarInputStream = new TarInputStream(inputStream);
-			
-			TarEntry candidate = tarInputStream.getNextEntry();
-			TarEntry hit_time_file = null;
-			
-			while ( candidate != null ) {
-				if ( candidate.getName().toLowerCase().endsWith("hit_data.tsv") ) {
-					hit_time_file = candidate;
-					break;
-				}
-				candidate = tarInputStream.getNextEntry();
-			}
-			
-			if ( hit_time_file != null ) {
-				lineReader = new EscapedLineReader(tarInputStream, job);
-			}
-			
-		} else {
-			lineReader = new EscapedLineReader(inputStream, job);
-			end = Long.MAX_VALUE;
-		}
-		
-		return lineReader;
-	}
-	
-}
 
+}

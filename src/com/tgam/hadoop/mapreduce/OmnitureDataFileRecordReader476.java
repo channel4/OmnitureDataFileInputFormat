@@ -58,38 +58,11 @@ public class OmnitureDataFileRecordReader476 extends RecordReader<LongWritable, 
 		// Open the file and seek to the start of the split
 		FileSystem fs = file.getFileSystem(job);
 		FSDataInputStream fileIn = fs.open(split.getPath());
-		
-//		start = 0;
-		
-		LOG.warn("START=" + start);
 		fileIn.seek(start);
 		
 		lineReader = buildEscapedLineReader(split.getPath(), fileIn, codec, job);
+
 		pos = start;
-		/*
-		
-			path = split.getPath();
-			
-			// LOG.warn("Path is " + path.getName() );
-			
-			boolean skipFirstLine = false;
-			if (codec != null) {
-				lineReader = new EscapedLineReader(codec.createInputStream(fileIn), job);
-				end = Long.MAX_VALUE;
-			} else {
-				if (start != 0) {
-					skipFirstLine = true;
-					--start;
-					fileIn.seek(start);
-				}
-				lineReader = new EscapedLineReader(fileIn, job);
-			}
-			if (skipFirstLine) {
-				start += lineReader.readLine(new Text(), 0, (int) Math.min((long) Integer.MAX_VALUE, end - start));
-			}
-			this.pos = start;
-		*/
-		
 	}
 	
 	@Override
@@ -189,7 +162,7 @@ public class OmnitureDataFileRecordReader476 extends RecordReader<LongWritable, 
 	}
 	
 	
-	EscapedLineReader buildEscapedLineReader(Path path, FSDataInputStream fileIn, CompressionCodec codec, Configuration job) throws IOException {
+	public EscapedLineReader buildEscapedLineReader(Path path, FSDataInputStream fileIn, CompressionCodec codec, Configuration job) throws IOException {
 		EscapedLineReader lineReader = null;
 		String lcase =path.getName().toLowerCase();
 		InputStream inputStream = fileIn;
@@ -206,11 +179,7 @@ public class OmnitureDataFileRecordReader476 extends RecordReader<LongWritable, 
 			TarEntry candidate = tarInputStream.getNextEntry();
 			TarEntry hit_time_file = null;
 			
-//			ArchiveEntry candidate = tarInputStream.getNextEntry();
-//			ArchiveEntry hit_time_file = null;
-			
 			while ( candidate != null ) {
-				LOG.warn("NAME=" + candidate.getName() );
 				if ( candidate.getName().toLowerCase().endsWith("hit_data.tsv") ) {
 					hit_time_file = candidate;
 					break;
@@ -229,5 +198,5 @@ public class OmnitureDataFileRecordReader476 extends RecordReader<LongWritable, 
 		
 		return lineReader;
 	}
-	
+
 }
